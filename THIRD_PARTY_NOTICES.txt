@@ -1,0 +1,104 @@
+Noks - third-party license and attribution notices
+
+Noks source code
+----------------
+The Noks source code is released under the MIT license. See LICENSE.
+The MIT grant covers Noks code only. It does not cover the third-party
+material listed below, and it does not cover Nokia firmware, which this
+repository does not distribute.
+
+The project source is at:
+https://github.com/jmacato/Noks
+
+Trademarks
+----------
+NOKIA, the Nokia logo, and the 3310 model designation belong to Nokia
+Corporation. Noks is not affiliated with or endorsed by Nokia
+Corporation. See TRADEMARKS.md.
+
+Nokia firmware
+--------------
+Nokia firmware is copyrighted third-party software. The user supplies it, and
+it is not present in this repository. A deployed browser build embeds a
+firmware image at build time. BUILD-MANIFEST.json, next to the deployed
+application, records the source revision and the firmware hash. The
+corresponding source for such a build is the repository named above, at the
+revision that BUILD-MANIFEST.json records.
+
+Nokia 3310 SVG design
+---------------------
+The phone interface derives from the Nokia 3310 SVG design in the Knockoffia
+project by Dan Harper, Ed Poole, Ali Smith, and Robb Lewis:
+https://github.com/DevsDoDesign/Knockoffia
+That repository publishes no license terms. Noks uses the design for
+identification in an educational, non-commercial emulator. Any rights holder
+who objects may open an issue, and the artwork will be replaced or removed.
+The vector data appears at src/Noks.Avalonia/Assets/3310.svg and in the
+generated src/Noks.Avalonia/Controls/PhoneShellData.g.cs.
+
+Noks.Cpu / SkyEmu
+-----------------
+Noks.Cpu is a C# port of the ARM7TDMI core in SkyEmu src/arm7.h.
+Copyright (c) 2021 Skyler "Sky" Saleh.
+https://github.com/skylersaleh/SkyEmu
+The port uses revision 01516d6798e3652b583e6a366085bb51c43b528d. Commit
+5303334b1ea9b2ff459d7dab579026a24c542c93 holds the original ARM7 rewrite.
+SkyEmu uses the MIT license. See src/Noks.Cpu/LICENSE.SkyEmu.txt.
+
+Arm7Tdmi.Multiplier.cs ports the bit-exact ARM7TDMI Booth multiplier
+reconstruction. Copyright (c) 2024 zaydlang, with contributions by
+calc84maniac, under a zlib-style license:
+https://github.com/zaydlang/multiplication-algorithm
+The port uses revision 29cef09501154a8d6ed63c52cde9c3e8be1b5034.
+See src/Noks.Cpu/LICENSE.Multiplier.txt.
+
+SingleStepTests ARM7TDMI suite
+------------------------------
+CPU verification uses the SingleStepTests ARM7TDMI corpus:
+https://github.com/SingleStepTests/ARM7TDMI
+The corpus is a shallow git submodule at external/ARM7TDMI. It is referenced,
+not vendored, and it is not redistributed by this repository.
+
+Bouncy Castle C# source subset
+------------------------------
+Copyright (c) 2000-2025 The Legion of the Bouncy Castle Inc.
+https://github.com/bcgit/bc-csharp
+The vendored subset uses the Bouncy Castle license. See
+src/vendor/BouncyCastle.Vendored/BouncyCastle/LICENSE.md.
+
+.NET browser WebAssembly runtime
+--------------------------------
+Copyright (c) .NET Foundation and Contributors.
+https://github.com/dotnet/runtime
+Licensed under the MIT license.
+
+Avalonia and SkiaSharp
+----------------------
+Copyright of their respective contributors.
+https://github.com/AvaloniaUI/Avalonia
+https://github.com/mono/SkiaSharp
+Used under their declared open-source licenses.
+
+Noks Recovery Vocabulary v1
+---------------------------
+Noks Recovery Vocabulary v1 uses the pinned EFF long Diceware word list by
+Joseph Bonneau and the Electronic Frontier Foundation:
+https://www.eff.org/dice
+EFF publishes its website content under a Creative Commons Attribution
+license. The generator excludes the official BIP-39 lists from the Bitcoin
+BIPs repository at commit c021a5f51ae9d3e71a41eac3dda6dc060fead35d:
+https://github.com/bitcoin/bips
+Source hashes, generator rules, and the final vocabulary hash are in
+tools/recovery-vocabulary.
+
+Ringtone melody
+---------------
+The bundled demonstration ringtone is the theme from the fourth movement of
+Beethoven's Ninth Symphony (1824), which is in the public domain.
+
+Call-intercept audio
+--------------------
+The call-intercept WAV files were produced for this project. Each one pairs an
+operator prompt recorded for Noks with an original special-information tone
+sequence synthesized to ITU-T E.180 and Q.35. Source recordings and
+reproducible hashes are in tools/audio-prompts.
