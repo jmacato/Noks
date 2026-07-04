@@ -1,0 +1,2 @@
+*.pdf binary
+src/vendor/BouncyCastle.Vendored/BouncyCastle/** whitespace=-trailing-space

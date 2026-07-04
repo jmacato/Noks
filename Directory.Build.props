@@ -1,0 +1,14 @@
+<Project>
+
+  <PropertyGroup>
+    <Product>Noks</Product>
+    <Authors>Jumar Macato</Authors>
+    <Company>Jumar Macato</Company>
+    <Copyright>Copyright (c) 2026 Jumar Macato</Copyright>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+</Project>

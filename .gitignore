@@ -1,0 +1,29 @@
+# Build output
+bin/
+obj/
+*.user
+__pycache__/
+*.py[cod]
+
+# MAME reference checkout (separate upstream repo, kept locally only)
+mame/
+
+# Ghidra upstream checkout/tooling sandbox (separate upstream repo, kept locally only)
+external/ghidra/
+ghidra_projects/
+
+# Copyrighted Nokia firmware / EEPROM images (provide locally, not redistributed)
+*.fls
+
+# Copyrighted Nokia service manuals / schematics (reference only, not redistributed)
+docs/*.pdf
+
+# macOS
+.DS_Store
+.idea/*
+artifacts/
+.tmp/
+research/
+
+# Generated at build time from the root THIRD_PARTY_NOTICES.txt
+src/Noks.Avalonia.Browser/wwwroot/legal/
