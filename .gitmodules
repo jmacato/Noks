@@ -1,0 +1,4 @@
+[submodule "external/ARM7TDMI"]
+	path = external/ARM7TDMI
+	url = https://github.com/SingleStepTests/ARM7TDMI.git
+	shallow = true
