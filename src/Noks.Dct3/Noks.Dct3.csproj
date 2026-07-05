@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Noks.Dct3</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Noks.Cpu/Noks.Cpu.csproj" />
+  </ItemGroup>
+
+</Project>
