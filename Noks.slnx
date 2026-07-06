@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Noks.Cpu/Noks.Cpu.csproj" />
+    <Project Path="src/Noks.Dct3.Tests/Noks.Dct3.Tests.csproj" />
     <Project Path="src/Noks.Dct3/Noks.Dct3.csproj" />
   </Folder>
 </Solution>
