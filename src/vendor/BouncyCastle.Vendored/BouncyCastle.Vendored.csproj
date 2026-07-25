@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework />
+    <TargetFrameworks>net10.0;net10.0-browser</TargetFrameworks>
+    <AssemblyName>BouncyCastle.Vendored</AssemblyName>
+    <Product>Bouncy Castle</Product>
+    <Authors>The Legion of the Bouncy Castle Inc.</Authors>
+    <Company>The Legion of the Bouncy Castle Inc.</Company>
+    <Copyright>Copyright (c) 2000-2025 The Legion of the Bouncy Castle Inc.</Copyright>
+    <RootNamespace>Org.BouncyCastle</RootNamespace>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <RunAnalyzers>false</RunAnalyzers>
+    <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsPackable>false</IsPackable>
+    <NoWarn>$(NoWarn);CS0618;CS0649;CS0672;CS1570;CS1572;CS1573;CS1591;CS3021;SYSLIB0051;CA1857</NoWarn>
+  </PropertyGroup>
+
+</Project>
