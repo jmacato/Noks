@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Noks.Waku</RootNamespace>
+    <AssemblyName>Noks.Waku</AssemblyName>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Noks.Cryptography/Noks.Cryptography.csproj" />
+  </ItemGroup>
+
+</Project>
