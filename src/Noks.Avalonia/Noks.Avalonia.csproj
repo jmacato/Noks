@@ -1,0 +1,91 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>noks-ui</AssemblyName>
+    <RootNamespace>Noks.AvaloniaApp</RootNamespace>
+    <PackageTimeLimitMonths Condition="'$(PackageTimeLimitMonths)' == ''">1</PackageTimeLimitMonths>
+    <EnablePackageTimeLimit Condition="'$(EnablePackageTimeLimit)' == '' and '$(Configuration)' == 'Release'">true</EnablePackageTimeLimit>
+    <PackageBuildUtc Condition="'$(PackageBuildUtc)' == ''">$([System.DateTime]::UtcNow.ToString("O"))</PackageBuildUtc>
+    <ObfuscatePublishedPackage Condition="'$(ObfuscatePublishedPackage)' == '' and '$(Configuration)' == 'Release'">true</ObfuscatePublishedPackage>
+    <PublishAot Condition="'$(PublishAot)' == '' and '$(Configuration)' == 'Release' and '$(RuntimeIdentifier)' != ''">true</PublishAot>
+    <SelfContained Condition="'$(SelfContained)' == '' and '$(PublishAot)' == 'true'">true</SelfContained>
+    <DebugType Condition="'$(PublishAot)' == 'true'">none</DebugType>
+    <DebugSymbols Condition="'$(PublishAot)' == 'true'">false</DebugSymbols>
+    <NativeDebugSymbols Condition="'$(PublishAot)' == 'true'">false</NativeDebugSymbols>
+    <CopyOutputSymbolsToPublishDirectory Condition="'$(PublishAot)' == 'true' and '$(KeepPublishSymbols)' != 'true'">false</CopyOutputSymbolsToPublishDirectory>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(EnablePackageTimeLimit)' == 'true'">
+    <AssemblyMetadata Include="Noks.PackageBuildUtc" Value="$(PackageBuildUtc)" />
+    <AssemblyMetadata Include="Noks.PackageTimeLimitMonths" Value="$(PackageTimeLimitMonths)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Noks.Application/Noks.Application.csproj" />
+    <ProjectReference Include="../Noks.Dct3/Noks.Dct3.csproj" />
+    <ProjectReference Include="../Noks.Waku/Noks.Waku.csproj" />
+  </ItemGroup>
+
+  <Target Name="BundleFlashDump" AfterTargets="Publish" Condition="'$(BundleFlashPath)' != ''">
+    <PropertyGroup>
+      <ResolvedBundleFlashPath>$([System.IO.Path]::GetFullPath('$(BundleFlashPath)', '$(MSBuildStartupDirectory)'))</ResolvedBundleFlashPath>
+    </PropertyGroup>
+
+    <Error Condition="!Exists('$(ResolvedBundleFlashPath)')" Text="BundleFlashPath does not exist: $(BundleFlashPath)" />
+    <Copy SourceFiles="$(ResolvedBundleFlashPath)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="RemoveAotPublishSymbols" AfterTargets="Publish" Condition="'$(PublishAot)' == 'true' and '$(KeepPublishSymbols)' != 'true'">
+    <ItemGroup>
+      <AotPublishPdb Include="$(PublishDir)*.pdb" />
+    </ItemGroup>
+
+    <Delete Files="@(AotPublishPdb)" />
+    <RemoveDir Directories="$(PublishDir)$(AssemblyName).dSYM" />
+  </Target>
+
+  <Target Name="ObfuscatePublishedPackage" AfterTargets="Publish" Condition="'$(ObfuscatePublishedPackage)' == 'true' and '$(PublishAot)' != 'true'">
+    <PropertyGroup>
+      <ObfuscarGeneratedConfig>$(IntermediateOutputPath)obfuscar.publish.xml</ObfuscarGeneratedConfig>
+      <ObfuscarOutputDir>$(IntermediateOutputPath)obfuscated-publish</ObfuscarOutputDir>
+    </PropertyGroup>
+
+    <RemoveDir Directories="$(ObfuscarOutputDir)" />
+
+    <ItemGroup>
+      <ObfuscarConfigLine Include="&lt;Obfuscator&gt;" />
+      <ObfuscarConfigLine Include="  &lt;Var name=&quot;InPath&quot; value=&quot;$(PublishDir)&quot; /&gt;" />
+      <ObfuscarConfigLine Include="  &lt;Var name=&quot;OutPath&quot; value=&quot;$(ObfuscarOutputDir)&quot; /&gt;" />
+      <ObfuscarConfigLine Include="  &lt;Var name=&quot;KeepPublicApi&quot; value=&quot;true&quot; /&gt;" />
+      <ObfuscarConfigLine Include="  &lt;Var name=&quot;HidePrivateApi&quot; value=&quot;true&quot; /&gt;" />
+      <ObfuscarConfigLine Include="  &lt;Var name=&quot;RenameFields&quot; value=&quot;true&quot; /&gt;" />
+      <ObfuscarConfigLine Include="  &lt;Var name=&quot;RenameProperties&quot; value=&quot;true&quot; /&gt;" />
+      <ObfuscarConfigLine Include="  &lt;Var name=&quot;RenameEvents&quot; value=&quot;true&quot; /&gt;" />
+      <ObfuscarConfigLine Include="  &lt;Module file=&quot;$(PublishDir)noks-ui.dll&quot; /&gt;" />
+      <ObfuscarConfigLine Include="  &lt;Module file=&quot;$(PublishDir)Noks.Dct3.dll&quot; /&gt;" />
+      <ObfuscarConfigLine Include="  &lt;Module file=&quot;$(PublishDir)Noks.Cpu.dll&quot; /&gt;" />
+      <ObfuscarConfigLine Include="&lt;/Obfuscator&gt;" />
+    </ItemGroup>
+
+    <WriteLinesToFile File="$(ObfuscarGeneratedConfig)" Lines="@(ObfuscarConfigLine)" Overwrite="true" />
+    <Exec WorkingDirectory="$(MSBuildProjectDirectory)" Command="dotnet tool restore" />
+    <Exec WorkingDirectory="$(MSBuildProjectDirectory)" Command="dotnet tool run obfuscar.console -- &quot;$(ObfuscarGeneratedConfig)&quot; -v:q" />
+
+    <ItemGroup>
+      <ObfuscatedPublishedAssembly Include="$(ObfuscarOutputDir)/noks-ui.dll" />
+      <ObfuscatedPublishedAssembly Include="$(ObfuscarOutputDir)/Noks.Dct3.dll" />
+      <ObfuscatedPublishedAssembly Include="$(ObfuscarOutputDir)/Noks.Cpu.dll" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(ObfuscatedPublishedAssembly)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="false" />
+  </Target>
+
+</Project>
