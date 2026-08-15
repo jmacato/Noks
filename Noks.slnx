@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Noks.Application.Tests/Noks.Application.Tests.csproj" />
     <Project Path="src/Noks.Application/Noks.Application.csproj" />
     <Project Path="src/Noks.Avalonia/Noks.Avalonia.csproj" />
     <Project Path="src/Noks.Cpu/Noks.Cpu.csproj" />
