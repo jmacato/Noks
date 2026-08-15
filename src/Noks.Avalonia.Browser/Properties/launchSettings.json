@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "Noks.Avalonia.Browser": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "applicationUrl": "https://0.0.0.0:5001;http://127.0.0.1:0"
+    }
+  }
+}

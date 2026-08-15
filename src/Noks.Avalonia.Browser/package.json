@@ -1,0 +1,13 @@
+{
+  "name": "noks-browser-network",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:audio": "node ../../tools/browser-audio-lifecycle-test.mjs",
+    "test:release-smoke": "node ../../tools/browser-release-smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.61.1"
+  }
+}

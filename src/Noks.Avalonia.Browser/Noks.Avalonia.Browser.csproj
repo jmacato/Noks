@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-browser</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>noks-ui-browser</AssemblyName>
+    <RootNamespace>Noks.AvaloniaApp.Browser</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DefineConstants>$(DefineConstants);BROWSER;BROWSER_THREADS</DefineConstants>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+    <WasmEnableThreads>true</WasmEnableThreads>
+    <WasmBuildNative>true</WasmBuildNative>
+    <EmccCompileOptimizationFlag Condition="'$(Configuration)' == 'Debug'">-O2</EmccCompileOptimizationFlag>
+    <WasmBitcodeCompileOptimizationFlag Condition="'$(Configuration)' == 'Debug'">-O2</WasmBitcodeCompileOptimizationFlag>
+    <EmccLinkOptimizationFlag Condition="'$(Configuration)' == 'Debug'">-O2</EmccLinkOptimizationFlag>
+    <EmccCompileOptimizationFlag Condition="'$(Configuration)' == 'Release'">-O3</EmccCompileOptimizationFlag>
+    <WasmBitcodeCompileOptimizationFlag Condition="'$(Configuration)' == 'Release'">-O3</WasmBitcodeCompileOptimizationFlag>
+    <EmccLinkOptimizationFlag Condition="'$(Configuration)' == 'Release'">-O3</EmccLinkOptimizationFlag>
+    <RunAOTCompilation Condition="'$(Configuration)' == 'Release'">true</RunAOTCompilation>
+    <PublishTrimmed Condition="'$(Configuration)' == 'Release'">true</PublishTrimmed>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Browser" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+  </ItemGroup>
+
+
+  <ItemGroup>
+    <ProjectReference Include="../Noks.Application/Noks.Application.csproj" />
+    <ProjectReference Include="../Noks.Dct3/Noks.Dct3.csproj" />
+    <ProjectReference Include="../Noks.Waku/Noks.Waku.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="../Noks.Avalonia/**/*.cs"
+             Exclude="../Noks.Avalonia/Startup/Program.cs;../Noks.Avalonia/bin/**/*.cs;../Noks.Avalonia/obj/**/*.cs"
+             Link="Noks.Avalonia/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <Target Name="CopyThirdPartyNotices" BeforeTargets="ResolveStaticWebAssetsInputs;BeforeBuild">
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)../../THIRD_PARTY_NOTICES.txt"
+          DestinationFolder="$(MSBuildThisFileDirectory)wwwroot/legal"
+          SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <Content Include="$(MSBuildThisFileDirectory)wwwroot/legal/THIRD_PARTY_NOTICES.txt" />
+    </ItemGroup>
+  </Target>
+
+</Project>

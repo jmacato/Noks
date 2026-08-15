@@ -1,0 +1,81 @@
+html,
+body,
+#out {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    overscroll-behavior: none;
+}
+
+body {
+    overflow: hidden;
+    background: #111312;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.splash {
+    display: grid;
+    width: 100%;
+    height: 100%;
+    place-items: center;
+    background: #111312;
+    color: #f4f6f2;
+    font: 600 1.125rem system-ui, sans-serif;
+}
+
+.splash-content {
+    display: grid;
+    width: min(72vw, 22rem);
+    gap: 0.875rem;
+}
+
+.splash-title {
+    font-size: 1.35rem;
+    line-height: 1.1;
+    text-align: center;
+}
+
+.splash-progress {
+    width: 100%;
+    height: 0.55rem;
+    overflow: hidden;
+    border: 1px solid #46514b;
+    border-radius: 999px;
+    background: #1b201d;
+}
+
+.splash-progress-fill {
+    width: 0%;
+    height: 100%;
+    border-radius: inherit;
+    background: #9ed18f;
+    transition: width 140ms ease-out;
+}
+
+.splash-status {
+    min-height: 1.2em;
+    color: #b7c1b8;
+    font: 500 0.8rem system-ui, sans-serif;
+    text-align: center;
+}
+
+.build-link,
+.legal-link {
+    position: fixed;
+    bottom: 0.35rem;
+    z-index: 10;
+    color: #89928b;
+    font: 500 0.65rem system-ui, sans-serif;
+    opacity: 0.8;
+    touch-action: manipulation;
+    user-select: text;
+    white-space: nowrap;
+}
+
+.build-link {
+    left: 0.55rem;
+}
+
+.legal-link {
+    right: 0.55rem;
+}
