@@ -4,6 +4,7 @@
     <Project Path="src/Noks.Application/Noks.Application.csproj" />
     <Project Path="src/Noks.Avalonia.Browser/Noks.Avalonia.Browser.csproj" />
     <Project Path="src/Noks.Avalonia/Noks.Avalonia.csproj" />
+    <Project Path="src/Noks.Cli/Noks.Cli.csproj" />
     <Project Path="src/Noks.Cpu/Noks.Cpu.csproj" />
     <Project Path="src/Noks.Cryptography.Tests/Noks.Cryptography.Tests.csproj" />
     <Project Path="src/Noks.Cryptography/Noks.Cryptography.csproj" />

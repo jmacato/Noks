@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>noks</AssemblyName>
+    <RootNamespace>Noks.Cli</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Noks.Cpu/Noks.Cpu.csproj" />
+    <ProjectReference Include="../Noks.Dct3/Noks.Dct3.csproj" />
+  </ItemGroup>
+
+</Project>
