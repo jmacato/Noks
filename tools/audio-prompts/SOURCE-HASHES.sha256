@@ -1,0 +1,6 @@
+7b72c7f11a616b6da8b06b4f1bd4eea9e23f4b45bccb7caa455c553e506e6efb  tools/audio-prompts/source/operator-emergency-services-offline.wav
+e80303aa709d654db1d2c0d80a71a254d5b0f5a7b335a3f8d15cab592af53516  tools/audio-prompts/source/operator-invalid-number.wav
+75a3b13376b5e352465164844ba1160a3aab98658908a55d9b1e76867a5134a9  tools/audio-prompts/source/operator-out-of-coverage.wav
+fff2d8daa1cc9a3c818c78ad43eb89b0d5e5be970c25b473bd7cb694e07e693e  src/Noks.Avalonia.Browser/wwwroot/audio/emergency-calls-unsupported.wav
+87b239b92e23c02d4837048fd00f0228c45e36906e4f61671b9343fb5ab4776a  src/Noks.Avalonia.Browser/wwwroot/audio/invalid-number.wav
+ec86cffa205e2402c3d267fb5c2857565cba67549ce7b4bc9a243b4a014b6dec  src/Noks.Avalonia.Browser/wwwroot/audio/out-of-coverage.wav

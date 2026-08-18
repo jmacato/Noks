@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Noks Class Browser</title>
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<header class="bar">
+  <button id="toggleTree" class="icon" title="Hide the tree">&#9776;</button>
+  <div class="brand">Noks <span>Class Browser</span></div>
+  <input id="search" type="search" placeholder="Search types and members" autocomplete="off" spellcheck="false" />
+  <div class="scope">
+    <select id="scope" title="Diagram">
+      <option value="neighbors">Type neighbourhood</option>
+      <option value="inheritance">Inheritance</option>
+      <option value="nsmap">Namespace map</option>
+      <option value="projects">Project dependencies</option>
+      <option value="nsgraph">Namespace dependencies</option>
+    </select>
+    <label id="depthWrap" title="How many hops from the selected type">hops
+      <select id="depth"><option>1</option><option>2</option><option>3</option></select>
+    </label>
+    <label title="Boxes drawn at first, and added by each + click">max
+      <select id="budget"><option>10</option><option selected>14</option><option>20</option><option>30</option><option>50</option><option value="9999">all</option></select>
+    </label>
+    <label class="opt" title="Show members in every box, not just the selected one"><input type="checkbox" id="showMembers" /> members</label>
+    <label class="opt" title="Include test projects"><input type="checkbox" id="showTests" /> tests</label>
+  </div>
+  <div class="actions">
+    <button id="zoomOut" title="Zoom out">-</button>
+    <span id="zoom" class="zoom">100%</span>
+    <button id="zoomIn" title="Zoom in">+</button>
+    <button id="reseed" title="Start again from the selected type">Reset</button>
+    <button id="fit" title="Fit to window">Fit</button>
+    <button id="dl" title="Download the current diagram">SVG</button>
+    <button id="toggleDetails" title="Hide the detail pane">Detail</button>
+    <button id="regen" title="Re-run the extractor">Regenerate</button>
+  </div>
+</header>
+<main>
+  <nav class="pane">
+    <div class="pane-head">
+      <label class="opt"><input type="checkbox" id="allMembers" /> private members</label>
+    </div>
+    <div id="tree"></div>
+  </nav>
+  <section class="canvas">
+    <div id="status" class="status"></div>
+    <div id="legend" class="legend">
+      <span><i class="e-inherit"></i> inherits</span>
+      <span><i class="e-implement"></i> implements</span>
+      <span><i class="e-uses"></i> uses</span>
+    </div>
+    <div id="surface"></div>
+  </section>
+  <aside id="details" class="pane"></aside>
+</main>
+<script type="module" src="/app.js"></script>
+</body>
+</html>
