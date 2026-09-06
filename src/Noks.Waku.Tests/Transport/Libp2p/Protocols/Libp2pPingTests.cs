@@ -73,6 +73,14 @@ public sealed class Libp2pPingTests
         await Assert.ThrowsAsync<IOException>(() => truncated.ReadExactlyAsync(2, CancellationToken.None).AsTask());
     }
 
+    [Fact]
+    public async Task ReadExactlyDoesNotTreatFailedChannelAsCleanEof()
+    {
+        MplexStream stream = NewStream();
+        stream.Complete(new System.Threading.Channels.ChannelClosedException());
+        await Assert.ThrowsAsync<IOException>(() => stream.ReadExactlyAsync(32, CancellationToken.None).AsTask());
+    }
+
     private static MplexStream NewStream() => new(
         (_, _, _, _) => ValueTask.CompletedTask, 0, localIsInitiator: true, "test");
 

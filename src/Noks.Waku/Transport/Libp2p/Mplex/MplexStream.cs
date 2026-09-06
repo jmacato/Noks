@@ -144,7 +144,7 @@ internal sealed class MplexStream
             {
                 bufferedInput.Append(await ReadInputAsync(cancellationToken));
             }
-            catch (ChannelClosedException) when (copied == 0)
+            catch (ChannelClosedException) when (copied == 0 && input.Reader.Completion.IsCompletedSuccessfully)
             {
                 return null;
             }
