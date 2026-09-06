@@ -5,19 +5,15 @@ using System.Net.WebSockets;
 using System.Threading.Channels;
 using Noks.Waku.Transport.Libp2p.Cryptography;
 using Noks.Waku.Transport.Libp2p.Discovery;
+using Noks.Waku.Transport.Libp2p.Protocols;
 using Noks.Waku.Transport.Libp2p.Wire;
 
 namespace Noks.Waku.Transport.Libp2p.Mplex;
 
-internal sealed class Libp2pWebSocketConnection : IAsyncDisposable
+internal sealed class Libp2pWebSocketConnection : ILibp2pConnection
 {
     private const int MaximumNoiseFrameLength = 65_535;
     private const int MaximumMplexFrameLength = 1_048_576;
-    // This deadline detects a connection that stops without a WebSocket close frame.
-    // For example, an abrupt TCP close can leave the socket in CLOSE_WAIT.
-    // Without a read deadline, ReceiveAsync can block indefinitely.
-    // Then the client cannot detect the failure, reconnect, or subscribe again.
-    private static readonly TimeSpan SocketReceiveTimeout = TimeSpan.FromSeconds(90);
     private readonly ClientWebSocket socket = new();
     private readonly SemaphoreSlim sendLock = new(1, 1);
     private readonly ByteQueue socketInput = new(16_384);
@@ -28,14 +24,21 @@ internal sealed class Libp2pWebSocketConnection : IAsyncDisposable
     private readonly Func<MplexStream, CancellationToken, Task> inboundStreamHandler;
     private NoiseSession? noise;
     private Task? receiveTask;
+    private Task? heartbeatTask;
+    private readonly TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private long nextStreamId = -1;
     private int disposed;
+    private int failed;
 
     private Libp2pWebSocketConnection(
         Func<MplexStream, CancellationToken, Task> inboundStreamHandler)
     {
         this.inboundStreamHandler = inboundStreamHandler;
     }
+
+    public bool IsAlive => Volatile.Read(ref disposed) == 0 && Volatile.Read(ref failed) == 0;
+
+    public Task Completion => completion.Task;
 
     public static async Task<Libp2pWebSocketConnection> ConnectAsync(
         WakuPeer peer,
@@ -59,6 +62,7 @@ internal sealed class Libp2pWebSocketConnection : IAsyncDisposable
             await connection.socket.ConnectAsync(peer.WebSocketUri, cancellationToken);
             await connection.NegotiateSecurityAsync(peer, identity, cancellationToken);
             connection.receiveTask = connection.ReceiveMplexAsync(connection.lifetime.Token);
+            connection.heartbeatTask = connection.HeartbeatAsync(connection.lifetime.Token);
             return connection;
         }
         catch
@@ -72,7 +76,8 @@ internal sealed class Libp2pWebSocketConnection : IAsyncDisposable
         string protocol,
         CancellationToken cancellationToken)
     {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
+        if (!IsAlive)
+            throw new IOException("Libp2p connection is no longer alive.");
         long id = Interlocked.Increment(ref nextStreamId);
         string name = id.ToString(CultureInfo.InvariantCulture);
         MplexStream stream = new(this, id, localIsInitiator: true, name);
@@ -139,31 +144,38 @@ internal sealed class Libp2pWebSocketConnection : IAsyncDisposable
         {
             try
             {
+                using CancellationTokenSource closeTimeout = new(TimeSpan.FromSeconds(2));
                 await socket.CloseOutputAsync(
                     WebSocketCloseStatus.NormalClosure,
                     "disposed",
-                    CancellationToken.None);
+                    closeTimeout.Token);
             }
-            catch (WebSocketException)
+            catch (Exception exception) when (exception is WebSocketException or OperationCanceledException or ObjectDisposedException)
             {
             }
         }
+        socket.Abort();
 
-        if (receiveTask is not null)
-        {
-            try
-            {
-                await receiveTask;
-            }
-            catch (Exception exception) when (
-                exception is OperationCanceledException or WebSocketException or IOException)
-            {
-            }
-        }
+        await AwaitLoopAsync(receiveTask);
+        await AwaitLoopAsync(heartbeatTask);
 
+        completion.TrySetResult();
+        _ = completion.Task.Exception;
         socket.Dispose();
-        sendLock.Dispose();
-        lifetime.Dispose();
+    }
+
+    private static async Task AwaitLoopAsync(Task? task)
+    {
+        if (task is null)
+            return;
+        try
+        {
+            await task;
+        }
+        catch (Exception)
+        {
+            // Completion retains the actual receive-loop failure for observers.
+        }
     }
 
     internal async ValueTask SendMplexAsync(
@@ -235,17 +247,56 @@ internal sealed class Libp2pWebSocketConnection : IAsyncDisposable
                     HandleMplexFrame(id, type, payload);
             }
         }
-        catch (Exception exception) when (
-            exception is OperationCanceledException or WebSocketException or IOException or
-                FormatException or System.Security.Cryptography.CryptographicException)
+        catch (Exception exception)
         {
             failure = exception;
         }
         finally
         {
-            foreach (MplexStream stream in streams.Values)
-                stream.Complete(failure);
+            if (failure is not null && !cancellationToken.IsCancellationRequested)
+                Terminate(failure);
+            else
+                CompleteStreams(failure);
         }
+    }
+
+    private async Task HeartbeatAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using PeriodicTimer timer = new(TimeSpan.FromSeconds(30));
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                using CancellationTokenSource deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                deadline.CancelAfter(TimeSpan.FromSeconds(10));
+                await Libp2pPing.QueryAsync(this, deadline.Token);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            Terminate(exception);
+        }
+    }
+
+    private void Terminate(Exception failure)
+    {
+        if (Interlocked.Exchange(ref failed, 1) == 0)
+        {
+            CompleteStreams(failure);
+            completion.TrySetException(failure);
+            lifetime.Cancel();
+            try { socket.Abort(); }
+            catch (WebSocketException) { }
+        }
+    }
+
+    private void CompleteStreams(Exception? failure)
+    {
+        foreach (MplexStream stream in streams.Values)
+            stream.Complete(failure);
     }
 
     private bool TryReadMplexFrame(out long id, out int type, out byte[] payload)
@@ -321,7 +372,7 @@ internal sealed class Libp2pWebSocketConnection : IAsyncDisposable
             await inboundStreamHandler(stream, lifetime.Token);
         }
         catch (Exception exception) when (
-            exception is OperationCanceledException or IOException or FormatException)
+            exception is OperationCanceledException or IOException or FormatException or ChannelClosedException or ObjectDisposedException)
         {
             stream.Complete(exception);
         }
@@ -413,17 +464,7 @@ internal sealed class Libp2pWebSocketConnection : IAsyncDisposable
     private async Task ReceiveSocketChunkAsync(CancellationToken cancellationToken)
     {
         byte[] buffer = new byte[16_384];
-        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(SocketReceiveTimeout);
-        ValueWebSocketReceiveResult result;
-        try
-        {
-            result = await socket.ReceiveAsync(buffer.AsMemory(), timeout.Token);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            throw new WebSocketException("Waku peer stopped responding (receive timed out).");
-        }
+        ValueWebSocketReceiveResult result = await socket.ReceiveAsync(buffer.AsMemory(), cancellationToken);
         if (result.MessageType == WebSocketMessageType.Close)
         {
             throw new WebSocketException(
