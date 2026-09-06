@@ -11,7 +11,7 @@ internal static class Libp2pIdentify
     public const string PingProtocol = "/ipfs/ping/1.0.0";
 
     public static async Task<Libp2pIdentifyResponse> QueryAsync(
-        Libp2pWebSocketConnection connection,
+        ILibp2pConnection connection,
         CancellationToken cancellationToken)
     {
         MplexStream stream = await connection.OpenStreamAsync(Protocol, cancellationToken);
