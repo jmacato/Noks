@@ -16,6 +16,7 @@ public sealed class WakuPhoneBridge : IAsyncDisposable
     private static readonly TimeSpan RealtimeRepeatDelay = TimeSpan.FromMilliseconds(350);
     private static readonly TimeSpan CallAcceptRetryDelay = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan SubscriptionRetryDelay = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan PqcDescriptorPublishRetryDelay = TimeSpan.FromSeconds(5);
     private const int RealtimePublishAttempts = 3;
     private readonly WakuProfileManager profiles;
     private readonly IWakuTransport transport;
@@ -55,6 +56,7 @@ public sealed class WakuPhoneBridge : IAsyncDisposable
     private WakuProfile observedProfile;
     private string observedPhoneNumber;
     private PqcRendezvousDescriptor? currentPqcDescriptor;
+    private DateTimeOffset? nextPqcDescriptorPublishAttempt;
     private static readonly bool DiagnosticsEnabled =
         Environment.GetEnvironmentVariable("NOKS_WAKU_DIAGNOSTICS") == "1";
 
@@ -546,6 +548,7 @@ public sealed class WakuPhoneBridge : IAsyncDisposable
             activeCalls.Clear();
             replayGuard = new WakuReplayGuard();
             currentPqcDescriptor = null;
+            nextPqcDescriptorPublishAttempt = null;
             pqcDescriptors.Clear();
             ownPqcDescriptors.Clear();
             pqcDescriptorAssemblies.Clear();
@@ -929,8 +932,12 @@ public sealed class WakuPhoneBridge : IAsyncDisposable
 
     private async ValueTask EnsurePqcDescriptorAsync(DateTimeOffset now, CancellationToken cancellationToken)
     {
+        if (nextPqcDescriptorPublishAttempt is { } retryAt && retryAt > now)
+            return;
+
+        TimeSpan renewalLead = GetPqcDescriptorRenewalLead();
         if (currentPqcDescriptor is not null &&
-            currentPqcDescriptor.ExpiresAtUnixMilliseconds > now.AddMinutes(5).ToUnixTimeMilliseconds())
+            currentPqcDescriptor.ExpiresAtUnixMilliseconds > (now + renewalLead).ToUnixTimeMilliseconds())
         {
             return;
         }
@@ -955,12 +962,21 @@ public sealed class WakuPhoneBridge : IAsyncDisposable
                 Ephemeral: false,
                 now.ToUnixTimeMilliseconds());
             if (!await TryPublishAsync(publish, cancellationToken))
+            {
+                nextPqcDescriptorPublishAttempt = timeProvider.GetUtcNow() + PqcDescriptorPublishRetryDelay;
                 return;
+            }
         }
         currentPqcDescriptor = descriptor;
+        nextPqcDescriptorPublishAttempt = null;
         ownPqcDescriptors[Convert.ToHexString(descriptor.DescriptorId)] = descriptor;
         pqcDescriptors[descriptor.TemporaryId] = descriptor;
     }
+
+    private TimeSpan GetPqcDescriptorRenewalLead() =>
+        options.StoreWindow < TimeSpan.FromMinutes(10)
+            ? options.StoreWindow / 2
+            : TimeSpan.FromMinutes(5);
 
     private async ValueTask FlushDeferredPqcOutboundAsync(
         DateTimeOffset now,
@@ -1976,7 +1992,10 @@ public sealed class WakuPhoneBridge : IAsyncDisposable
             WakuPublishResult result = await transport.PublishAsync(request, cancellationToken);
             if (result.AcceptedByServicePeer)
             {
-                SetStatus(WakuPhoneBridgeStatus.Online);
+                SetStatus(transport is not IWakuTransportDiagnostics diagnostics ||
+                    HasRealtimeRoute(diagnostics.Diagnostics)
+                    ? WakuPhoneBridgeStatus.Online
+                    : WakuPhoneBridgeStatus.Offline);
                 return true;
             }
             LogDiagnostic($"publish not accepted by any service peer topic={request.ContentTopic}");
@@ -1992,6 +2011,12 @@ public sealed class WakuPhoneBridge : IAsyncDisposable
         SetStatus(WakuPhoneBridgeStatus.Offline);
         return false;
     }
+
+    private static bool HasRealtimeRoute(WakuTransportDiagnostics diagnostics) =>
+        string.Equals(diagnostics.Phase, "ready", StringComparison.Ordinal) &&
+        diagnostics.PeerCount > 0 &&
+        diagnostics.LightPushReady &&
+        diagnostics.FilterReady;
 
     private void ExpirePendingRoutes(DateTimeOffset now)
     {
@@ -2135,11 +2160,31 @@ public sealed class WakuPhoneBridge : IAsyncDisposable
             .Concat(activeCalls.Values.Select(value => value.NextCallAcceptRetryAt))
             .Concat(activeCalls.Values.Select(value => value.FirmwareSynchronizationDeadline))
             .Min();
+        DateTimeOffset? pqcDescriptorDeadline = GetPqcDescriptorDeadline(now);
+        if (pqcDescriptorDeadline is not null &&
+            (routeDeadline is null || pqcDescriptorDeadline < routeDeadline))
+        {
+            routeDeadline = pqcDescriptorDeadline;
+        }
         DateTimeOffset deadline = routeDeadline is not null && routeDeadline < topicRollover
             ? routeDeadline.Value
             : topicRollover;
         TimeSpan delay = deadline - now;
         deadlineTimer.Change(delay > TimeSpan.Zero ? delay : TimeSpan.Zero, Timeout.InfiniteTimeSpan);
+    }
+
+    private DateTimeOffset? GetPqcDescriptorDeadline(DateTimeOffset now)
+    {
+        if (!PostQuantumRendezvousEnabled)
+            return null;
+        if (nextPqcDescriptorPublishAttempt is { } retryAt && retryAt > now)
+            return retryAt;
+        if (currentPqcDescriptor is null)
+            return now;
+
+        DateTimeOffset renewalAt = DateTimeOffset.FromUnixTimeMilliseconds(
+            currentPqcDescriptor.ExpiresAtUnixMilliseconds) - GetPqcDescriptorRenewalLead();
+        return renewalAt > now ? renewalAt : now;
     }
 
     private void EnqueueCommand(WakuPhoneCommand command)
