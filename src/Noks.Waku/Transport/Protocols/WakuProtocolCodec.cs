@@ -40,6 +40,15 @@ internal static class WakuProtocolCodec
         return writer.ToArray();
     }
 
+    public static byte[] EncodeFilterControlRequest(uint requestType, out string requestId)
+    {
+        requestId = Guid.NewGuid().ToString();
+        ProtobufWriter writer = new();
+        writer.WriteString(1, requestId);
+        writer.WriteUInt32(2, requestType);
+        return writer.ToArray();
+    }
+
     public static WakuStatusResponse DecodeFilterSubscribeResponse(ReadOnlySpan<byte> encoded) =>
         DecodeStatusResponse(encoded, relayPeerCountField: null);
 

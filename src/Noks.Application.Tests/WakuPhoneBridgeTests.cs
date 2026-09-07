@@ -1218,7 +1218,7 @@ public sealed class WakuPhoneBridgeTests
     [Fact]
     public async Task IdleLiveSubscriptionRollsAtEpochBoundaryWithoutPollingOrOverlap()
     {
-        const long epoch = 12_345;
+        long epoch = WakuTopicProfile.GetEpoch(DateTimeOffset.UtcNow) + 1;
         const long offsetMilliseconds = 1_234;
         DateTimeOffset initial = DateTimeOffset.FromUnixTimeMilliseconds(
             epoch * WakuTopicProfile.EpochDurationMilliseconds + offsetMilliseconds);
@@ -1246,6 +1246,152 @@ public sealed class WakuPhoneBridgeTests
 
         await Task.Delay(20);
         Assert.False(transport.TryTakeSubscription(out _));
+    }
+
+    [Fact]
+    public async Task IdlePqcDescriptorRenewsBeforeExpiryAcrossTopicRollover()
+    {
+        long epoch = WakuTopicProfile.GetEpoch(DateTimeOffset.UtcNow) + 1;
+        DateTimeOffset initial = DateTimeOffset.FromUnixTimeMilliseconds(
+            epoch * WakuTopicProfile.EpochDurationMilliseconds + (long)TimeSpan.FromHours(1).TotalMilliseconds);
+        ManualTimeProvider time = new(initial);
+        InMemoryWakuHub hub = new();
+        await using WakuProfileManager profile = await WakuProfileManager.LoadOrCreateAsync(new MemoryStore());
+        await using WakuPhoneBridge bridge = new(
+            profile,
+            hub.CreateTransport(),
+            time,
+            WakuPhoneBridgeOptions.Default with
+            {
+                EnablePostQuantumRendezvous = true,
+                PostQuantumMinimumWorkBits = 1,
+            });
+
+        bridge.Start();
+        await WaitUntilAsync(() => GetPrivateCollectionCount(bridge, "ownPqcDescriptors") == 1);
+        int initialDescriptorPublishCount = hub.PublishedRequests.Count(IsPqcDescriptorPublish);
+        await WaitUntilAsync(() => time.NextDeadline == initial + TimeSpan.FromHours(5));
+
+        time.Advance(TimeSpan.FromHours(5));
+        await WaitUntilAsync(() => time.NextDeadline == initial + TimeSpan.FromHours(5) + TimeSpan.FromMinutes(55));
+        Assert.Equal(initialDescriptorPublishCount, hub.PublishedRequests.Count(IsPqcDescriptorPublish));
+
+        time.Advance(TimeSpan.FromMinutes(55));
+        await WaitUntilAsync(() =>
+            hub.PublishedRequests.Count(IsPqcDescriptorPublish) > initialDescriptorPublishCount);
+    }
+
+    [Fact]
+    public async Task FailedPqcDescriptorPublishRetriesAfterBoundedDelay()
+    {
+        ManualTimeProvider time = new(DateTimeOffset.FromUnixTimeMilliseconds(1_800_000_000_000));
+        RolloverRecordingTransport transport = new(rejectedPublishCount: 1);
+        await using WakuProfileManager profile = await WakuProfileManager.LoadOrCreateAsync(new MemoryStore());
+        await using WakuPhoneBridge bridge = new(
+            profile,
+            transport,
+            time,
+            WakuPhoneBridgeOptions.Default with
+            {
+                EnablePostQuantumRendezvous = true,
+                PostQuantumMinimumWorkBits = 1,
+            });
+
+        bridge.Start();
+        WakuPublishRequest first = await transport.WaitForPublishAsync();
+        Assert.True(IsPqcDescriptorPublish(first));
+        await WaitUntilAsync(() => time.NextDeadline == time.GetUtcNow() + TimeSpan.FromSeconds(5));
+
+        time.Advance(TimeSpan.FromSeconds(4));
+        await Task.Delay(20);
+        Assert.False(transport.TryTakePublish(out _));
+
+        time.Advance(TimeSpan.FromSeconds(1));
+        WakuPublishRequest retry = await transport.WaitForPublishAsync();
+        Assert.True(IsPqcDescriptorPublish(retry));
+    }
+
+    [Fact]
+    public async Task ShortStoreWindowSchedulesRenewalWithoutAnImmediateLoop()
+    {
+        DateTimeOffset initial = DateTimeOffset.UtcNow.AddDays(1);
+        ManualTimeProvider time = new(initial);
+        RolloverRecordingTransport transport = new();
+        await using WakuProfileManager profile = await WakuProfileManager.LoadOrCreateAsync(new MemoryStore());
+        await using WakuPhoneBridge bridge = new(profile, transport, time,
+            WakuPhoneBridgeOptions.Default with
+            {
+                StoreWindow = TimeSpan.FromMinutes(2),
+                EnablePostQuantumRendezvous = true,
+                PostQuantumMinimumWorkBits = 1,
+            });
+        bridge.Start();
+        await WaitUntilAsync(() => GetPrivateCollectionCount(bridge, "ownPqcDescriptors") == 1);
+        // Descriptor timestamps have millisecond resolution.
+        DateTimeOffset renewal = DateTimeOffset.FromUnixTimeMilliseconds(initial.ToUnixTimeMilliseconds()).AddMinutes(1);
+        await WaitUntilAsync(() => time.NextDeadline == renewal);
+        while (transport.TryTakePublish(out _)) { }
+        time.Advance(TimeSpan.FromSeconds(59));
+        Assert.False(transport.TryTakePublish(out _));
+        time.Advance(TimeSpan.FromSeconds(1));
+        Assert.True(IsPqcDescriptorPublish(await transport.WaitForPublishAsync()));
+    }
+
+    [Fact]
+    public async Task DisposedBridgeDoesNotRenewIdlePqcDescriptor()
+    {
+        ManualTimeProvider time = new(DateTimeOffset.FromUnixTimeMilliseconds(1_800_000_000_000));
+        RolloverRecordingTransport transport = new();
+        await using WakuProfileManager profile = await WakuProfileManager.LoadOrCreateAsync(new MemoryStore());
+        WakuPhoneBridge bridge = new(
+            profile,
+            transport,
+            time,
+            WakuPhoneBridgeOptions.Default with
+            {
+                EnablePostQuantumRendezvous = true,
+                PostQuantumMinimumWorkBits = 1,
+            });
+
+        bridge.Start();
+        Assert.True(IsPqcDescriptorPublish(await transport.WaitForPublishAsync()));
+        await bridge.DisposeAsync();
+        while (transport.TryTakePublish(out _)) { }
+
+        time.Advance(TimeSpan.FromHours(6));
+        await Task.Delay(20);
+        Assert.False(transport.TryTakePublish(out _));
+    }
+
+    [Fact]
+    public async Task AcceptedPublishWithoutFilterRouteRemainsOffline()
+    {
+        DiagnosticPublishTransport transport = new(WakuTransportDiagnostics.Empty with
+        {
+            Phase = "ready",
+            PeerCount = 1,
+            LightPushReady = true,
+            FilterReady = false,
+        });
+        await using WakuProfileManager profile = await WakuProfileManager.LoadOrCreateAsync(new MemoryStore());
+        await using WakuPhoneBridge bridge = new(profile, transport, options: WakuPhoneBridgeOptions.Default with
+        {
+            EnablePostQuantumRendezvous = true,
+            PostQuantumMinimumWorkBits = 1,
+        });
+
+        BridgeHarness harness = new(bridge);
+        Guid requestId = Guid.NewGuid();
+        bridge.Start();
+        bridge.TryEnqueue(new OutgoingNetworkRequest(
+            requestId,
+            NetworkRequestKind.Sms,
+            "1234567890123",
+            "status test"));
+
+        await harness.WaitForAsync(command => command.Kind == WakuPhoneCommandKind.ResolveNetworkRequest &&
+            command.RequestId == requestId);
+        Assert.Equal(WakuPhoneBridgeStatus.Offline, bridge.Status);
     }
 
     [Fact]
@@ -1597,6 +1743,11 @@ public sealed class WakuPhoneBridgeTests
     private static byte[] EmptyRecord() =>
         Enumerable.Repeat((byte)0xFF, SimPhonebookCodec.RecordLength).ToArray();
 
+    private static bool IsPqcDescriptorPublish(WakuPublishRequest request) =>
+        request.Payload.Span.Length >= 6 &&
+        request.Payload.Span[..4].SequenceEqual("NPQ1"u8) &&
+        request.Payload.Span[5] == (byte)PqcRendezvousWireKind.DescriptorChunk;
+
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(5));
@@ -1869,12 +2020,28 @@ public sealed class WakuPhoneBridgeTests
         }
     }
 
-    private sealed class RolloverRecordingTransport : IWakuTransport
+    private sealed class DiagnosticPublishTransport(WakuTransportDiagnostics diagnostics)
+        : RolloverRecordingTransport, IWakuTransportDiagnostics
+    {
+        public WakuTransportDiagnostics Diagnostics => diagnostics;
+        public string DiagnosticsReport => "";
+        public event Action<WakuTransportDiagnostics>? DiagnosticsChanged { add { } remove { } }
+        public ValueTask RefreshDiagnosticsAsync(CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
+    }
+
+    private class RolloverRecordingTransport : IWakuTransport
     {
         private readonly Channel<string[]> subscriptions = Channel.CreateUnbounded<string[]>();
         private readonly Channel<WakuPublishRequest> publishes = Channel.CreateUnbounded<WakuPublishRequest>();
+        private readonly int rejectedPublishCount;
         private int activeSubscriptions;
         private int maximumConcurrentSubscriptions;
+        private int publishCount;
+
+        public RolloverRecordingTransport(int rejectedPublishCount = 0)
+        {
+            this.rejectedPublishCount = rejectedPublishCount;
+        }
 
         public int MaximumConcurrentSubscriptions => Volatile.Read(ref maximumConcurrentSubscriptions);
 
@@ -1884,7 +2051,8 @@ public sealed class WakuPhoneBridgeTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             publishes.Writer.TryWrite(request);
-            return ValueTask.FromResult(new WakuPublishResult(1));
+            int acceptedByServicePeer = Interlocked.Increment(ref publishCount) > rejectedPublishCount ? 1 : 0;
+            return ValueTask.FromResult(new WakuPublishResult(acceptedByServicePeer));
         }
 
         public async IAsyncEnumerable<WakuTransportMessage> SubscribeAsync(
@@ -1996,6 +2164,11 @@ public sealed class WakuPhoneBridgeTests
             this.now = now;
         }
 
+        public DateTimeOffset? NextDeadline
+        {
+            get { lock (sync) return timers.Select(timer => timer.DueAt).Min(); }
+        }
+
         public override DateTimeOffset GetUtcNow()
         {
             lock (sync)
@@ -2037,6 +2210,7 @@ public sealed class WakuPhoneBridgeTests
             private readonly TimerCallback callback;
             private readonly object? state;
             private DateTimeOffset? dueAt;
+            public DateTimeOffset? DueAt => dueAt;
             private TimeSpan period;
             private bool disposed;
 

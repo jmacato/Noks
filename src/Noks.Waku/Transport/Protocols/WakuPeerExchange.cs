@@ -9,7 +9,7 @@ internal static class WakuPeerExchange
     public const string Protocol = "/vac/waku/peer-exchange/2.0.0-alpha1";
 
     public static async Task<IReadOnlyList<WakuPeer>> QueryAsync(
-        Libp2pWebSocketConnection connection,
+        ILibp2pConnection connection,
         int peerCount,
         CancellationToken cancellationToken)
     {

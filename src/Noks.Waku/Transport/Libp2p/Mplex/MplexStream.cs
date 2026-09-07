@@ -8,7 +8,7 @@ namespace Noks.Waku.Transport.Libp2p.Mplex;
 internal sealed class MplexStream
 {
     private const int MaximumFrameLength = 1_048_576;
-    private readonly Libp2pWebSocketConnection connection;
+    private readonly Func<long, int, ReadOnlyMemory<byte>, CancellationToken, ValueTask> sendFrame;
     private readonly Channel<byte[]> input = Channel.CreateBounded<byte[]>(
         new BoundedChannelOptions(128)
         {
@@ -27,7 +27,19 @@ internal sealed class MplexStream
         bool localIsInitiator,
         string name)
     {
-        this.connection = connection;
+        sendFrame = connection.SendMplexAsync;
+        Id = id;
+        this.localIsInitiator = localIsInitiator;
+        Name = name;
+    }
+
+    internal MplexStream(
+        Func<long, int, ReadOnlyMemory<byte>, CancellationToken, ValueTask> sendFrame,
+        long id,
+        bool localIsInitiator,
+        string name)
+    {
+        this.sendFrame = sendFrame;
         Id = id;
         this.localIsInitiator = localIsInitiator;
         Name = name;
@@ -71,7 +83,7 @@ internal sealed class MplexStream
     }
 
     public ValueTask SendAsync(ReadOnlyMemory<byte> payload, CancellationToken cancellationToken) =>
-        connection.SendMplexAsync(
+        sendFrame(
             Id,
             localIsInitiator ? MplexProtocol.MessageInitiator : MplexProtocol.MessageReceiver,
             payload,
@@ -108,6 +120,43 @@ internal sealed class MplexStream
         }
     }
 
+    public async ValueTask<byte[]?> ReadExactlyAsync(int length, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(length);
+        if (length == 0)
+            return [];
+
+        byte[] result = new byte[length];
+        int copied = 0;
+        while (copied < length)
+        {
+            if (bufferedInput.Count > 0)
+            {
+                int count = Math.Min(length - copied, bufferedInput.Count);
+                if (!bufferedInput.TryRead(count, out byte[] bytes))
+                    throw new InvalidOperationException("Mplex input accounting failed.");
+                bytes.CopyTo(result, copied);
+                copied += count;
+                continue;
+            }
+
+            try
+            {
+                bufferedInput.Append(await ReadInputAsync(cancellationToken));
+            }
+            catch (ChannelClosedException) when (copied == 0 && input.Reader.Completion.IsCompletedSuccessfully)
+            {
+                return null;
+            }
+            catch (ChannelClosedException exception)
+            {
+                throw new IOException("Mplex stream ended during a raw protocol message.", exception);
+            }
+        }
+
+        return result;
+    }
+
     public async IAsyncEnumerable<byte[]> ReadAllLengthPrefixedAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
@@ -119,7 +168,7 @@ internal sealed class MplexStream
     {
         if (Interlocked.Exchange(ref closed, 1) != 0)
             return;
-        await connection.SendMplexAsync(
+        await sendFrame(
             Id,
             localIsInitiator ? MplexProtocol.CloseInitiator : MplexProtocol.CloseReceiver,
             ReadOnlyMemory<byte>.Empty,
