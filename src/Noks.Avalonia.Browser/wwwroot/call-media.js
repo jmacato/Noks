@@ -68,8 +68,8 @@ export function begin(attemptId, isCaller) {
         active = call
         call.peer = new RTCPeerConnection(rtcConfiguration)
         installPeerHandlers(call)
-        call.audioSender = call.peer.addTransceiver('audio', { direction: 'sendrecv' }).sender
         if (call.isCaller) {
+            call.audioSender = call.peer.addTransceiver('audio', { direction: 'sendrecv' }).sender
             await call.peer.setLocalDescription(await call.peer.createOffer())
             emitJson(call, mediaEventKind.sdpOffer, call.peer.localDescription)
         }
@@ -109,6 +109,15 @@ export function apply(attemptId, eventKind, payloadBase64) {
                     return
                 }
                 await call.peer.setRemoteDescription(payload)
+                // Use the offered audio section. A separate local transceiver would
+                // create a second section when the answerer starts its microphone.
+                if (!call.audioSender) {
+                    const audio = call.peer.getTransceivers().find(transceiver =>
+                        transceiver.receiver.track.kind === 'audio' && !transceiver.stopped)
+                    if (!audio) throw new Error('The call offer has no audio track')
+                    audio.direction = 'sendrecv'
+                    call.audioSender = audio.sender
+                }
                 await flushPendingCandidates(call)
                 await call.peer.setLocalDescription(await call.peer.createAnswer())
                 emitJson(call, mediaEventKind.sdpAnswer, call.peer.localDescription)

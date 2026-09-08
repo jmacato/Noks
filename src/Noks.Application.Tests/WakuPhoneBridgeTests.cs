@@ -11,7 +11,7 @@ using Noks.AvaloniaApp.Messaging;
 
 namespace Noks.Application.Tests;
 
-public sealed class WakuPhoneBridgeTests
+public sealed partial class WakuPhoneBridgeTests
 {
     [Fact]
     public async Task RequiredPqcModeCannotBeDisabled()

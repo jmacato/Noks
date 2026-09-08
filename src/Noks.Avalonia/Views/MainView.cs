@@ -169,6 +169,9 @@ public sealed class MainView : UserControl
     private readonly IWakuTransport? wakuTransport;
     private readonly IWakuTransportDiagnostics? wakuDiagnostics;
     private readonly WakuPhoneBridge? wakuBridge;
+#if !BROWSER
+    private readonly DesktopCallMedia? desktopCallMedia;
+#endif
     private readonly PhoneInputState inputState = new();
     private readonly Dictionary<long, long> pointerPressedAtMillisecondsByPointerId = [];
     private readonly Dictionary<long, PointerType> pointerTypeByPointerId = [];
@@ -288,6 +291,10 @@ public sealed class MainView : UserControl
             wakuBridge.StatusChanged += OnBridgeStatusChanged;
             profileManager.ProfileChanged += OnProfileChanged;
         }
+#if !BROWSER
+        if (wakuBridge is not null)
+            desktopCallMedia = new DesktopCallMedia(mediaEvent => wakuBridge.TryEnqueue(mediaEvent));
+#endif
 #if BROWSER
         if (wakuBridge is not null)
         {
@@ -1474,6 +1481,8 @@ public sealed class MainView : UserControl
 #if BROWSER
         DisposeBrowserVibration();
         BrowserCallMediaInterop.Dispose();
+#else
+        desktopCallMedia?.DisposeAsync().AsTask().GetAwaiter().GetResult();
 #endif
         ReleaseAllInputKeys();
         StopVibrationAnimation();
@@ -2404,26 +2413,28 @@ public sealed class MainView : UserControl
 #if BROWSER
                     Dispatcher.UIThread.Post(() => _ = BeginBrowserCallMediaAsync(command));
 #else
-                    // The desktop has no WebRTC audio path. The bridge immediately reports media readiness.
-                    // Thus, call signaling (ringing, GSM CONNECT) continues without real voice audio.
-                    wakuBridge?.TryEnqueue(WakuCallMediaEvent.State(
-                        command.RequestId,
-                        WakuCallMediaEventKind.Connected));
+                    _ = desktopCallMedia?.BeginAsync(command.RequestId, command.IsCaller);
 #endif
                     break;
                 case WakuPhoneCommandKind.ActivateCallMedia:
 #if BROWSER
                     Dispatcher.UIThread.Post(() => _ = ActivateBrowserCallMediaAsync(command.RequestId));
+#else
+                    _ = desktopCallMedia?.ActivateAsync(command.RequestId);
 #endif
                     break;
                 case WakuPhoneCommandKind.ApplyCallMediaSignal:
 #if BROWSER
                     Dispatcher.UIThread.Post(() => _ = ApplyBrowserCallMediaSignalAsync(command));
+#else
+                    _ = desktopCallMedia?.ApplyAsync(command.RequestId, command.EventKind, command.Payload.AsMemory());
 #endif
                     break;
                 case WakuPhoneCommandKind.EndCallMedia:
 #if BROWSER
                     Dispatcher.UIThread.Post(() => _ = EndBrowserCallMediaAsync(command.RequestId));
+#else
+                    _ = desktopCallMedia?.EndAsync(command.RequestId);
 #endif
                     break;
                 case WakuPhoneCommandKind.ConnectNetworkCall:
