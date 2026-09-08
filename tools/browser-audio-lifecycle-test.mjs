@@ -6,7 +6,7 @@ const workletUrl = new URL('../src/Noks.Avalonia.Browser/wwwroot/audio-worklet.j
 const source = await readFile(sourceUrl, 'utf8')
 const workletSource = await readFile(workletUrl, 'utf8')
 const browserPcmSource = await readFile(
-    new URL('../src/Noks.Avalonia/BrowserBuzzerAudio.cs', import.meta.url),
+    new URL('../src/Noks.Avalonia/Browser/BrowserBuzzerAudio.cs', import.meta.url),
     'utf8')
 const callMediaSource = await readFile(
     new URL('../src/Noks.Avalonia.Browser/wwwroot/call-media.js', import.meta.url),

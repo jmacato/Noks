@@ -15,6 +15,11 @@ public static class PhoneAudio
             return new BuzzerAudio();
         }
 
+        if (OperatingSystem.IsWindows() || OperatingSystem.IsLinux())
+        {
+            return new DesktopPhoneAudio();
+        }
+
         return null;
 #endif
     }

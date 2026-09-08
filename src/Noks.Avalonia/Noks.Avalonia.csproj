@@ -32,6 +32,7 @@
     <ProjectReference Include="../Noks.Application/Noks.Application.csproj" />
     <ProjectReference Include="../Noks.Dct3/Noks.Dct3.csproj" />
     <ProjectReference Include="../Noks.Waku/Noks.Waku.csproj" />
+    <ProjectReference Include="../Noks.WebRtc/Noks.WebRtc.csproj" />
   </ItemGroup>
 
   <Target Name="BundleFlashDump" AfterTargets="Publish" Condition="'$(BundleFlashPath)' != ''">

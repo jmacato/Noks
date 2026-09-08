@@ -7,7 +7,8 @@ namespace Noks.AvaloniaApp.Audio;
 public sealed class BuzzerAudio : IPhoneAudio
 {
     private const string AudioToolboxLibrary = "/System/Library/Frameworks/AudioToolbox.framework/AudioToolbox";
-    private const int SampleRate = Dct3AudioPcmGenerator.DefaultSampleRate;
+    private readonly int sampleRate;
+    private readonly Action<short[]>? externalRender;
     // Three buffers total about 17.4 ms. Larger buffers smear the firmware's
     // short articulation gaps and make adjacent notes sound uneven.
     private const int FramesPerBuffer = 256;
@@ -19,7 +20,7 @@ public sealed class BuzzerAudio : IPhoneAudio
     private readonly object lifecycleLock = new();
     private readonly object stateLock = new();
     private readonly object renderLock = new();
-    private readonly Dct3AudioPcmGenerator generator = new(SampleRate);
+    private readonly Dct3AudioPcmGenerator generator;
     private readonly ushort[] pcmBuffer = new ushort[FramesPerBuffer];
     private readonly short[] renderBuffer = new short[FramesPerBuffer];
     private readonly IntPtr[] buffers = new IntPtr[BufferCount];
@@ -30,12 +31,22 @@ public sealed class BuzzerAudio : IPhoneAudio
     private bool disposed;
 
     public BuzzerAudio()
+        : this(Dct3AudioPcmGenerator.DefaultSampleRate, null)
+    {
+    }
+
+    /// <summary>Creates a macOS PCM output queue rendered by the supplied callback.</summary>
+    internal BuzzerAudio(int sampleRate, Action<short[]>? render)
     {
         if (!OperatingSystem.IsMacOS())
         {
             throw new PlatformNotSupportedException("CoreAudio output is only available on macOS.");
         }
 
+        if (sampleRate < 8_000) throw new ArgumentOutOfRangeException(nameof(sampleRate));
+        this.sampleRate = sampleRate;
+        externalRender = render;
+        generator = new Dct3AudioPcmGenerator(sampleRate);
         callback = OnAudioQueueOutput;
         selfHandle = GCHandle.Alloc(this);
 
@@ -101,7 +112,7 @@ public sealed class BuzzerAudio : IPhoneAudio
             {
                 AudioStreamBasicDescription format = new()
                 {
-                    SampleRate = SampleRate,
+                    SampleRate = sampleRate,
                     FormatId = AudioFormatLinearPcm,
                     FormatFlags = AudioFormatFlagIsSignedInteger | AudioFormatFlagIsPacked,
                     BytesPerPacket = BytesPerFrame,
@@ -237,6 +248,11 @@ public sealed class BuzzerAudio : IPhoneAudio
 
     private void Render()
     {
+        if (externalRender is not null)
+        {
+            externalRender(renderBuffer);
+            return;
+        }
         lock (stateLock)
         {
             generator.Render(pcmBuffer);

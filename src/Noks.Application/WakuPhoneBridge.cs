@@ -223,11 +223,7 @@ public sealed class WakuPhoneBridge : IAsyncDisposable
             {
                 await foreach (WakuTransportMessage message in transport.SubscribeAsync(topics, cancellationToken))
                 {
-                    if (!work.Writer.TryWrite(BridgeWork.Transport(message)))
-                    {
-                        LogDiagnostic($"work queue full, dropped live message topic={message.ContentTopic}");
-                        SetStatus(WakuPhoneBridgeStatus.Offline);
-                    }
+                    await work.Writer.WriteAsync(BridgeWork.Transport(message), cancellationToken);
                 }
 
                 // A Filter peer can also close its stream cleanly. That is not a
@@ -274,11 +270,7 @@ public sealed class WakuPhoneBridge : IAsyncDisposable
                 now.AddMinutes(1).ToUnixTimeMilliseconds());
             await foreach (WakuTransportMessage message in transport.QueryStoreAsync(query, cancellationToken))
             {
-                if (!work.Writer.TryWrite(BridgeWork.Transport(message)))
-                {
-                    LogDiagnostic($"work queue full, dropped store message topic={message.ContentTopic}");
-                    SetStatus(WakuPhoneBridgeStatus.Offline);
-                }
+                await work.Writer.WriteAsync(BridgeWork.Transport(message), cancellationToken);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
