@@ -37,7 +37,6 @@ public sealed class WakuPhoneBridgeBackpressureTests
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         while (received.Count(x => x.Kind == WakuPhoneCommandKind.QueueIncomingSms) < 64) await Task.Delay(10, timeout.Token);
         var sms = received.Where(x => x.Kind == WakuPhoneCommandKind.QueueIncomingSms).ToArray();
-        Assert.Equal(64, sms.Length);
         Assert.Equal(Enumerable.Range(0, 64).Select(i => $"burst-{i:D2}").Order(), sms.Select(x => x.Text).Order());
         Assert.All(sms, x => Assert.Equal(senderNumber, x.Address));
     }

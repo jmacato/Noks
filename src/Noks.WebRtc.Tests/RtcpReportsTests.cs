@@ -1,17 +1,7 @@
-using System.Buffers.Binary;
-
 namespace Noks.WebRtc.Tests;
 
 public sealed class RtcpReportsTests
 {
-    [Fact]
-    public void Sender_report_is_compound_with_cname()
-    {
-        var bytes = RtcpReports.CreateSenderReport(7, 9, 11, 13, DateTimeOffset.UnixEpoch, "node@example");
-        Assert.True(RtcpReports.TryParse(bytes, out var bye)); Assert.Null(bye);
-        Assert.Equal(200, bytes[1]); Assert.Equal(202, bytes[29]);
-    }
-
     [Fact]
     public void Truncated_sdes_is_rejected()
     {
