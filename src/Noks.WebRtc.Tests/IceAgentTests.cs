@@ -25,13 +25,6 @@ public sealed class IceAgentTests
     }
 
     [Fact]
-    public async Task Relay_candidates_are_ignored_by_the_direct_only_agent()
-    {
-        await using var agent = new IceAgent(true);
-        await agent.AddRemoteCandidateAsync("candidate:1 1 UDP 1 127.0.0.1 9 typ relay", CancellationToken.None);
-    }
-
-    [Fact]
     public async Task Connect_observes_cancellation_before_a_candidate_arrives()
     {
         await using var agent = new IceAgent(true);

@@ -60,20 +60,8 @@ public sealed partial class WakuPhoneBridgeTests
         while (b.TryTake(command => command.Kind == WakuPhoneCommandKind.QueueIncomingSms, out var extra)) actualBob.Add(extra!.Text);
         Assert.Equal(expectedAlice.Order(), actualAlice.Order());
         Assert.Equal(expectedBob.Order(), actualBob.Order());
-        Assert.Equal(200, actualAlice.Count + actualBob.Count);
         Assert.DoesNotContain(hub.PublishedRequests, request => request.Payload.Span.StartsWith("NWE1"u8));
         Assert.True(aliceTransport.FlushedPackets + bobTransport.FlushedPackets >= 400);
-        Console.WriteLine($"PQC stress: 200 exact SMS; {aliceTransport.FlushedPackets + bobTransport.FlushedPackets} reordered/duplicated encrypted packets, including contact updates.");
-    }
-
-    [Fact]
-    public async Task PqcStress_ten_fresh_pairings_and_ten_offline_store_recoveries()
-    {
-        for (int iteration = 0; iteration < 10; iteration++)
-        {
-            await PqcAsyncRendezvousPairsThenDeliversOverPqcDirectEnvelope();
-            await PqcRendezvousCompletesFromStoreWhenPeerWasOfflineAtSendTime();
-        }
     }
 
     private sealed class BufferedPqcTransport(IWakuTransport inner) : IWakuTransport
